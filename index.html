@@ -1203,11 +1203,33 @@
       /* ================= Dropbox: images ================= */
 
       var imgUrlCache = new Map(); // name -> object URL
+      var imgFetchState = new Map(); // name -> "loading" | "failed"
+      var imgThumbWaiters = new Map(); // name -> Set of thumbnail buttons waiting for the image
+      var overlayImageName = ""; // image name currently shown in the overlay
 
+      /* Fetch the real image from <folder>/data/<name> (once, even
+         if several thumbnails ask at the same time), then deliver
+         it through deliverThumbImage(). The button that asked is
+         not necessarily the button on screen when the download
+         finishes: buildThumb() calls this before the button is
+         attached to the document, and a re-render can replace the
+         button while the download is in flight. The previous
+         version updated only the requesting button, and only if
+         it happened to be connected at that moment, so a thumbnail
+         could stay a placeholder forever even though the image
+         itself had downloaded fine — tapping it still showed the
+         picture, because the overlay reads the cache directly. */
       function fetchDbxImage(name, btn) {
-        if (imgUrlCache.has(name)) { showThumbImage(btn, imgUrlCache.get(name)); return; }
+        if (btn) {
+          var set = imgThumbWaiters.get(name);
+          if (!set) { set = new Set(); imgThumbWaiters.set(name, set); }
+          set.add(btn);
+        }
+        if (imgUrlCache.has(name)) { deliverThumbImage(name); return; }
+        if (imgFetchState.get(name) === "loading") return;
         var path = dbx.imagePath(name);
-        if (!path) return;
+        if (!path) { imgFetchState.set(name, "failed"); deliverThumbImage(name); return; }
+        imgFetchState.set(name, "loading");
         dbxFetch("https://content.dropboxapi.com/2/files/download", {
           method: "POST",
           headers: { "Dropbox-API-Arg": apiArg({ path: path }) }
@@ -1215,11 +1237,50 @@
           if (!resp.ok) return null;
           return resp.blob();
         }).then(function (blob) {
-          if (!blob) return;
+          if (!blob) { imgFetchState.set(name, "failed"); deliverThumbImage(name); return; }
           var url = URL.createObjectURL(blob);
           imgUrlCache.set(name, url);
-          showThumbImage(btn, url);
-        }).catch(function () { /* keep the placeholder */ });
+          imgFetchState.delete(name);
+          deliverThumbImage(name);
+        }).catch(function () {
+          /* keep the placeholder */
+          imgFetchState.set(name, "failed");
+          deliverThumbImage(name);
+        });
+      }
+
+      /* Push the outcome for `name` to the screen: the real image
+         into every waiting thumbnail button that is still in the
+         document, and into the overlay when it is open on this
+         image (or the not-found note when the download failed).
+         Deferred to the next frame, because a button built a
+         moment ago is only attached to the document once
+         buildThumb()'s caller appends it — an immediate update
+         would be dropped by the isConnected guard. */
+      function deliverThumbImage(name) {
+        var run = function () {
+          var url = imgUrlCache.get(name);
+          var set = imgThumbWaiters.get(name);
+          if (set) {
+            set.forEach(function (b) {
+              if (b.isConnected && url) showThumbImage(b, url);
+              if (!b.isConnected || url) set.delete(b);
+            });
+            if (!set.size) imgThumbWaiters.delete(name);
+          }
+          if (overlayImageName !== name || !els.overlay.classList.contains("open")) return;
+          if (url) {
+            els.ovImg.src = url;
+            els.ovImg.alt = name;
+            els.ovImg.hidden = false;
+            els.ovPlaceholder.style.display = "none";
+            els.ovNote.textContent = "Dropboxの data フォルダから読み込んだ実画像です。";
+          } else if (imgFetchState.get(name) === "failed") {
+            els.ovNote.textContent = "Dropboxの data フォルダにこの画像が見つからなかったため、実画像は表示できません。";
+          }
+        };
+        if (window.requestAnimationFrame) requestAnimationFrame(run);
+        else setTimeout(run, 0);
       }
 
       function showThumbImage(btn, url) {
@@ -1234,6 +1295,7 @@
 
       function openImageOverlay(name, btn) {
         els.ovName.textContent = name;
+        overlayImageName = name;
         var url = imgUrlCache.get(name);
         if (url) {
           els.ovImg.src = url;
@@ -1245,9 +1307,17 @@
           els.ovImg.hidden = true;
           els.ovImg.removeAttribute("src");
           els.ovPlaceholder.style.display = "";
-          els.ovNote.textContent = state.source === "dropbox"
-            ? "Dropboxの data フォルダにこの画像が見つからなかったため、実画像は表示できません。"
-            : "この画像の実ファイルは読み込まれていないため、ここに大きく表示されます。Dropbox接続後は同じ場所に実画像が表示されます。";
+          if (state.source === "dropbox" && imgFetchState.get(name) !== "failed") {
+            // Not downloaded yet (or still downloading): fetch it
+            // now; deliverThumbImage() swaps the picture in as soon
+            // as it arrives, instead of wrongly reporting it missing.
+            els.ovNote.textContent = "Dropboxの data フォルダから読み込んでいます…";
+            fetchDbxImage(name, null);
+          } else {
+            els.ovNote.textContent = state.source === "dropbox"
+              ? "Dropboxの data フォルダにこの画像が見つからなかったため、実画像は表示できません。"
+              : "この画像の実ファイルは読み込まれていないため、ここに大きく表示されます。Dropbox接続後は同じ場所に実画像が表示されます。";
+          }
         }
         els.overlay.classList.add("open");
       }
@@ -1617,9 +1687,9 @@
       });
 
       /* image overlay */
-      $("btnCloseOverlay").addEventListener("click", function () { els.overlay.classList.remove("open"); });
+      $("btnCloseOverlay").addEventListener("click", function () { overlayImageName = ""; els.overlay.classList.remove("open"); });
       els.overlay.addEventListener("click", function (e) {
-        if (e.target === els.overlay) els.overlay.classList.remove("open");
+        if (e.target === els.overlay) { overlayImageName = ""; els.overlay.classList.remove("open"); }
       });
 
       /* ================= init ================= */
