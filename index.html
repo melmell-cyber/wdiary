@@ -231,6 +231,12 @@
       .set-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
       .set-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .set-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 10px 0 4px; }
+      .auth-open-link {
+        display: inline-block; margin-top: 6px; padding: 10px 16px;
+        border: 1px solid var(--accent); border-radius: 8px;
+        background: var(--accent-soft); color: var(--accent-strong);
+        font-size: 15px; font-weight: 700; text-decoration: none;
+      }
       .settings-close-row { margin-top: 18px; text-align: right; }
     </style>
   </head>
@@ -241,12 +247,7 @@
         <span class="dirty-dot" id="dirtyDot">未保存の変更</span>
         <span class="save-status" id="saveStatus">Dropbox未接続</span>
         <span class="spacer"></span>
-        <button class="btn" id="btnSampleDec" type="button">サンプル 2026/12</button>
-        <button class="btn" id="btnSampleJan" type="button">サンプル 2027/01</button>
-        <button class="btn" id="btnOpen" type="button">ファイルを開く</button>
-        <button class="btn primary" id="btnDownload" type="button">書き出してダウンロード</button>
         <button class="btn" id="btnSettings" type="button"><svg class="gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>設定</button>
-        <input type="file" id="fileInput" accept=".txt,text/plain" hidden />
       </div>
 
       <div class="conflict-bar" id="conflictBar" hidden>
@@ -322,7 +323,8 @@
             <button class="btn" id="btnSaveAppKey" type="button">App keyを保存</button>
             <button class="btn primary" id="btnConnect" type="button">Dropboxに接続</button>
           </div>
-          <p class="set-note">「Dropboxに接続」を押すと、Dropboxの認可画面が新しいタブで開きます。ログインして許可するとコードが表示されるので、コピーして下の欄に貼り付けてください。アプリの権限は files.metadata.read / files.content.read / files.content.write を有効にしておいてください。</p>
+          <p class="set-note" id="authLinkRow" hidden>認可画面のタブが自動で開かなかった場合は、こちらのリンクをタップして開いてください（このリンクをタップする操作では、Safariにブロックされません）。<br /><a id="authLink" class="auth-open-link" href="#" target="_blank" rel="noopener">Dropboxの認可画面を開く</a></p>
+          <p class="set-note">「Dropboxに接続」を押すと、Dropboxの認可画面が新しいタブで開きます。タブが開かなかった場合は、上の「Dropboxの認可画面を開く」リンクをタップしてください。ログインして許可するとコードが表示されるので、コピーして下の欄に貼り付けてください。アプリの権限は files.metadata.read / files.content.read / files.content.write を有効にしておいてください。</p>
           <label class="set-label" for="authCodeInput">認可コード</label>
           <input type="text" id="authCodeInput" class="set-input" autocomplete="off" spellcheck="false" placeholder="Dropboxに表示されたコードを貼り付け" />
           <div class="set-row">
@@ -336,13 +338,13 @@
         <section class="set-sec">
           <h3>日記フォルダ</h3>
           <p class="set-status" id="folderStatus">—</p>
-          <label class="set-label" for="folderInput">フォルダパス</label>
+          <label class="set-label" for="folderInput">フォルダパス（Dropbox内の日記フォルダ）</label>
           <input type="text" id="folderInput" class="set-input" autocomplete="off" spellcheck="false" placeholder="Dropbox内の日記フォルダのパス" />
           <div class="set-row">
             <button class="btn" id="btnSaveFolder" type="button">このパスを使う</button>
             <button class="btn" id="btnClearFolder" type="button">手入力を消す</button>
           </div>
-          <p class="set-note">日記フォルダの場所はここで指定します。Dropbox内のフォルダパスをそのまま入力してください。一度指定すれば、この端末では次回から自動で使われます。</p>
+          <p class="set-note">日記フォルダのパスをここで入力してください。入力したパスはこの端末に保存され、次回から自動で使われます。手入力がない場合は、以前に保存されたパスがあればそれを使います。</p>
         </section>
 
         <section class="set-sec">
@@ -350,7 +352,7 @@
           <div class="set-row">
             <button class="btn" id="btnLoadDbxMonth" type="button">Dropboxの今月を読み込む</button>
           </div>
-          <p class="set-note">サンプルや端末のファイルを開いているときに、Dropboxの日記表示へ戻ります。「ファイルを開く」「書き出してダウンロード」「サンプル」は予備の手段として残しています。</p>
+          <p class="set-note">Dropboxに保存されている今月の日記を読み込みます。</p>
         </section>
 
         <div class="settings-close-row">
@@ -453,32 +455,6 @@
         return new TextDecoder("utf-8").decode(arrayBuffer);
       }
 
-      /* ================= sample data (user's real test files) ================= */
-
-      function buildRaw(pairs) {
-        var parts = [];
-        pairs.forEach(function (p) {
-          var s = p[0];
-          p[1].forEach(function (line) { s += "\r\n\t" + line; });
-          s += "\r\n";
-          parts.push(s);
-        });
-        return parts.join("\r\n");
-      }
-
-      var SAMPLES = {
-        "202612.txt": buildRaw([
-          ["2026/12/01", ["これはテストです"]],
-          ["2026/12/10", ["これはテストですその２"]],
-          ["2026/12/24", ["これはテストですその３"]]
-        ]),
-        "202701.txt": buildRaw([
-          ["2027/01/06", ["あめんぼあかない", "あああ"]],
-          ["2027/01/08", ["*あいうえお", "かきくけこ", "サシスセソ", "*見出しです", "内容です", "[[20270108_0001.png]]", ""]],
-          ["2027/01/24", ["これはテストですその４"]]
-        ])
-      };
-
       /* ================= state ================= */
 
       var state = {
@@ -489,7 +465,7 @@
         selected: "",           // dateKey
         edited: new Set(),
         mode: "preview",        // "preview" | "edit"
-        source: "sample",       // "sample" | "local" | "dropbox"
+        source: "none",         // "none" | "dropbox"
         rev: null,              // Dropbox rev of the loaded month file
         monthExists: false,     // whether the month file exists on Dropbox
         conflict: false,        // Dropbox rev conflict: autosave stopped
@@ -509,7 +485,7 @@
         editorArea: $("editorArea"), monthMissing: $("monthMissing"),
         monthNotice: $("monthNotice"),
         tabPreview: $("tabPreview"), tabEdit: $("tabEdit"),
-        btnDownload: $("btnDownload"), toast: $("toast"),
+        toast: $("toast"),
         overlay: $("overlay"), ovName: $("ovName"), ovImg: $("ovImg"),
         ovPlaceholder: $("ovPlaceholder"), ovNote: $("ovNote"),
         conflictBar: $("conflictBar"),
@@ -533,7 +509,7 @@
         var el = els.saveStatus;
         el.classList.remove("warn");
         if (!dbx.connected()) { el.textContent = "Dropbox未接続"; return; }
-        if (state.source !== "dropbox") { el.textContent = "Dropbox接続中（いまはサンプル／端末ファイルを表示中）"; return; }
+        if (state.source !== "dropbox") { el.textContent = "Dropbox接続中"; return; }
         if (state.conflict) { el.textContent = "PC側で変更されています"; el.classList.add("warn"); return; }
         if (state.saving) { el.textContent = "保存中…"; return; }
         if (state.saveError) { el.textContent = "保存できませんでした"; el.classList.add("warn"); return; }
@@ -697,13 +673,20 @@
               "Dropboxから読み込みます。"));
             els.monthMissing.appendChild(document.createElement("br"));
             els.monthMissing.appendChild(buildRetryButton());
+          } else if (!dbx.connected()) {
+            strong.textContent = y + "年" + m + "月の日記は、まだ表示されていません。";
+            els.monthMissing.appendChild(strong);
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(document.createTextNode(
+              "設定からDropboxに接続してください。接続すると、この月の日記が表示されます。"));
           } else {
             strong.textContent = y + "年" + m + "月のファイルは、まだ読み込まれていません。";
             els.monthMissing.appendChild(strong);
             els.monthMissing.appendChild(document.createElement("br"));
             els.monthMissing.appendChild(document.createTextNode(
-              "いま開いているのは " + state.fileName + " です。この月を編集するには、上の「ファイルを開く」から " +
-              y + pad2(m) + ".txt を選ぶか、サンプルボタンを押してください。"));
+              "Dropboxから読み込みます。"));
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(buildRetryButton());
           }
           return;
         }
@@ -745,7 +728,48 @@
          Dropbox on the PC has not finished uploading it, so the
          cloud (and therefore this app) cannot see it yet. */
       function renderMonthNotice() {
-        var show = state.source === "dropbox" && dbx.connected() && isLoadedMonth() && !state.monthExists;
+        if (!isLoadedMonth()) { els.monthNotice.hidden = true; return; }
+        // Not connected yet: show a quiet prompt over the empty
+        // current-month calendar instead of any sample content.
+        if (!dbx.connected()) {
+          els.monthNotice.innerHTML = "";
+          var nText = document.createElement("span");
+          nText.className = "mn-text";
+          var nStrong = document.createElement("strong");
+          nStrong.textContent = "Dropboxにまだ接続していません。";
+          nText.appendChild(nStrong);
+          nText.appendChild(document.createTextNode(
+            "設定からDropboxに接続してください。接続すると日記が表示されます。"));
+          els.monthNotice.appendChild(nText);
+          var nBtn = document.createElement("button");
+          nBtn.type = "button";
+          nBtn.className = "btn";
+          nBtn.textContent = "設定を開く";
+          nBtn.addEventListener("click", function () { openSettings(); });
+          els.monthNotice.appendChild(nBtn);
+          els.monthNotice.hidden = false;
+          return;
+        }
+        if (dbx.connected() && !dbx.folder()) {
+          els.monthNotice.innerHTML = "";
+          var fText = document.createElement("span");
+          fText.className = "mn-text";
+          var fStrong = document.createElement("strong");
+          fStrong.textContent = "日記フォルダが未設定です。";
+          fText.appendChild(fStrong);
+          fText.appendChild(document.createTextNode(
+            "設定で日記フォルダのパスを入力してください。"));
+          els.monthNotice.appendChild(fText);
+          var fBtn = document.createElement("button");
+          fBtn.type = "button";
+          fBtn.className = "btn";
+          fBtn.textContent = "設定を開く";
+          fBtn.addEventListener("click", function () { openSettings(); });
+          els.monthNotice.appendChild(fBtn);
+          els.monthNotice.hidden = false;
+          return;
+        }
+        var show = state.source === "dropbox" && isLoadedMonth() && !state.monthExists;
         if (!show) { els.monthNotice.hidden = true; return; }
         var y = state.fileYear, m = state.fileMonth;
         var fname = y + pad2(m) + ".txt";
@@ -757,7 +781,7 @@
         text.appendChild(strong);
         text.appendChild(document.createTextNode(
           "読み込みエラーではありません。このまま日記を書くことができ、保存するとファイルが新規作成されます。" +
-          "PCの wDiary でこの月をすでに書いているのにこの表示になる場合は、PC側の Dropbox でそのファイルの同期がまだ終わっていない可能性があります。" +
+          "PC側でこの月をすでに書いているのにこの表示になる場合は、PC側の Dropbox でそのファイルの同期がまだ終わっていない可能性があります。" +
           "エクスプローラーで " + fname + " の横のアイコンが緑のチェック（同期完了）になっているか確認し、同期が終わってから読み直してください。"));
         els.monthNotice.appendChild(text);
         els.monthNotice.appendChild(buildRetryButton());
@@ -844,7 +868,6 @@
       };
       var SS_VERIFIER = "wdiary.dbx.verifier";
       var pkceVerifier = null; // in-memory copy: sessionStorage may be blocked too
-      var FOLDER_CANDIDATES = [];
 
       /* Some browsers / in-app webviews block localStorage entirely
          (sandboxed iframe, private mode, storage partitioning). A
@@ -1026,28 +1049,11 @@
         return dbxRpc("/files/get_metadata", { path: path, include_media_info: false, include_deleted: false });
       }
 
-      /* Strict variant for folder resolution: a 409 still means
-         "not there" (null), but network failures and other HTTP
-         errors are thrown, so the caller can report the フォルダ判定
-         stage instead of mistaking a dead connection for a missing
-         folder (the lenient dbxRpc above swallows everything). */
-      function getMetadataStrict(path) {
-        return dbxFetch("https://api.dropboxapi.com/2/files/get_metadata", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path: path, include_media_info: false, include_deleted: false })
-        }).then(function (resp) {
-          if (resp.status === 409) return null; // path/not_found
-          return resp.json().catch(function () { return null; }).then(function (json) {
-            if (!resp.ok) {
-              throw new Error((json && (json.error_summary || json.error)) || ("HTTP " + resp.status));
-            }
-            return json;
-          });
-        });
-      }
-
-      /* The diary folder path is supplied manually in Settings. */
+      /* Folder resolution: manual entry wins, then a previously
+         saved folder path (folderAuto) if one is still stored on
+         this device, otherwise undetermined — the user is asked
+         to enter the path in Settings. No candidate paths are
+         embedded in this build. */
       function resolveFolder() {
         if (lsGet(LS.folderManual)) return Promise.resolve(lsGet(LS.folderManual));
         if (lsGet(LS.folderAuto)) return Promise.resolve(lsGet(LS.folderAuto));
@@ -1347,19 +1353,39 @@
         var verifier = makeVerifier();
         pkceVerifier = verifier;
         try { sessionStorage.setItem(SS_VERIFIER, verifier); } catch (e) {}
-        sha256OfString(verifier).then(function (hash) {
-          var challenge = b64url(hash);
-          var url = "https://www.dropbox.com/oauth2/authorize"
-            + "?client_id=" + encodeURIComponent(key)
-            + "&response_type=code"
-            + "&token_access_type=offline"
-            + "&code_challenge=" + encodeURIComponent(challenge)
-            + "&code_challenge_method=S256";
-          window.open(url, "_blank");
+        // Compute the PKCE challenge SYNCHRONOUSLY with the pure-JS
+        // SHA-256 and open the authorize tab inside this click handler
+        // itself. The previous version computed the challenge in a
+        // Promise callback (crypto.subtle) and called window.open()
+        // after that await: iOS Safari no longer counts that as a
+        // user-initiated popup, silently blocks the tab, yet the toast
+        // still claimed 認可画面を開きました — so nothing appeared in
+        // Safari at all. sha256Pure is exact here because the verifier
+        // is base64url ASCII (same encoding sha256OfString uses).
+        var vBytes = new Uint8Array(verifier.length);
+        for (var i = 0; i < verifier.length; i++) vBytes[i] = verifier.charCodeAt(i) & 0xFF;
+        var challenge = b64url(sha256Pure(vBytes));
+        var url = "https://www.dropbox.com/oauth2/authorize"
+          + "?client_id=" + encodeURIComponent(key)
+          + "&response_type=code"
+          + "&token_access_type=offline"
+          + "&code_challenge=" + encodeURIComponent(challenge)
+          + "&code_challenge_method=S256";
+        // Always arm a tappable fallback link as well: a real <a> tap
+        // is a fresh user gesture, so it opens even on browsers /
+        // webviews where window.open() itself gets blocked.
+        var link = $("authLink"), linkRow = $("authLinkRow");
+        if (link) link.href = url;
+        if (linkRow) linkRow.hidden = false;
+        var win = null;
+        try { win = window.open(url, "_blank"); } catch (e) { win = null; }
+        if (win) {
+          try { win.focus(); } catch (e) {}
           toast("Dropboxの認可画面を開きました。表示されたコードを貼り付けてください");
-        }).catch(function () {
-          toast("接続処理を開始できませんでした");
-        });
+        } else {
+          // Never claim the tab opened when it did not.
+          toast("タブを自動で開けませんでした。「Dropboxの認可画面を開く」リンクをタップしてください");
+        }
       }
 
       function completeConnect() {
@@ -1377,6 +1403,8 @@
           storeTokens(json);
           pkceVerifier = null;
           try { sessionStorage.removeItem(SS_VERIFIER); } catch (e) {}
+          var lr = $("authLinkRow"); if (lr) lr.hidden = true;
+          var lk = $("authLink"); if (lk) lk.removeAttribute("href");
           els.authCodeInput.value = "";
           toast("Dropboxに接続しました");
           afterConnect();
@@ -1389,8 +1417,9 @@
         resolveFolder().then(function (folder) {
           updateSettingsUI();
           if (!folder) {
-            toast("日記フォルダが見つかりませんでした。設定でパスを指定してください");
+            toast("日記フォルダが未設定です。設定でパスを入力してください");
             refreshSaveStatus();
+            renderMonthNotice();
             return;
           }
           var now = new Date();
@@ -1405,10 +1434,11 @@
       }
 
       function disconnect() {
-        lsDel(LS.access); lsDel(LS.refresh); lsDel(LS.expires); lsDel(LS.folderAuto);
+        lsDel(LS.access); lsDel(LS.refresh); lsDel(LS.expires);
         state.rev = null;
         state.monthExists = false;
         state.lastSavedAt = null;
+        if (typeof showEmptyCurrentMonth === "function") showEmptyCurrentMonth();
         updateSettingsUI();
         refreshSaveStatus();
         toast("Dropboxとの接続を解除しました");
@@ -1432,8 +1462,8 @@
         if (!els.appKeyInput.value) els.appKeyInput.value = dbx.appKey();
         var folder = dbx.folder();
         els.folderStatus.textContent = folder
-          ? "日記フォルダ：" + folder + (lsGet(LS.folderManual) ? "（手入力）" : "（自動判定）")
-          : "日記フォルダ：未決定（設定でパスを指定してください）";
+          ? "日記フォルダ：" + folder + (lsGet(LS.folderManual) ? "（手入力）" : "（保存済み）")
+          : "日記フォルダ：未決定（下でパスを入力してください）";
         if (document.activeElement !== els.folderInput) {
           els.folderInput.value = lsGet(LS.folderManual) || "";
         }
@@ -1475,7 +1505,7 @@
       }
 
       function gotoMonth(y, m, preferredDay) {
-        if (state.source === "dropbox") {
+        if (state.source === "dropbox" || (dbx.connected() && !!dbx.folder())) {
           if (y === state.fileYear && m === state.fileMonth) {
             if (preferredDay) {
               state.selected = dateKey(y, m, preferredDay);
@@ -1506,53 +1536,6 @@
       $("btnToday").addEventListener("click", function () {
         var now = new Date();
         gotoMonth(now.getFullYear(), now.getMonth() + 1, now.getDate());
-      });
-
-      $("btnSampleDec").addEventListener("click", function () {
-        state.rev = null; state.monthExists = false; state.lastSavedAt = null;
-        loadText("202612.txt", SAMPLES["202612.txt"], "sample");
-        toast("サンプル 202612.txt を読み込みました");
-      });
-      $("btnSampleJan").addEventListener("click", function () {
-        state.rev = null; state.monthExists = false; state.lastSavedAt = null;
-        loadText("202701.txt", SAMPLES["202701.txt"], "sample");
-        toast("サンプル 202701.txt を読み込みました");
-      });
-
-      var fileInput = $("fileInput");
-      $("btnOpen").addEventListener("click", function () { fileInput.click(); });
-      fileInput.addEventListener("change", function () {
-        var file = fileInput.files && fileInput.files[0];
-        if (!file) return;
-        file.arrayBuffer().then(function (buf) {
-          var text = decodeFile(buf);
-          state.rev = null; state.monthExists = false; state.lastSavedAt = null;
-          loadText(file.name, text, "local");
-          toast(file.name + " を読み込みました");
-        }).catch(function () {
-          toast("ファイルを開けませんでした");
-        });
-        fileInput.value = "";
-      });
-
-      els.btnDownload.addEventListener("click", function () {
-        if (!state.model) return;
-        var text = serializeDiary(state.model, state.edited);
-        var bytes = encodeUTF16LE(text);
-        var blob = new Blob([bytes], { type: "text/plain;charset=utf-16le" });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement("a");
-        a.href = url;
-        a.download = state.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-        if (state.source !== "dropbox") {
-          state.edited.clear();
-          els.dirtyDot.classList.remove("on");
-        }
-        toast(state.fileName + " を書き出しました（UTF-16LE / CRLF）");
       });
 
       /* conflict resolution */
@@ -1606,20 +1589,14 @@
       });
       $("btnClearFolder").addEventListener("click", function () {
         lsDel(LS.folderManual);
-        lsDel(LS.folderAuto);
         els.folderInput.value = "";
-        if (dbx.connected()) {
-          resolveFolder().then(function () {
-            updateSettingsUI();
-            toast("手入力を消しました");
-          }).catch(function (e) {
-            updateSettingsUI();
-            failureToast("フォルダの確認に失敗しました", e, "フォルダ判定");
-          });
+        updateSettingsUI();
+        if (dbx.folder()) {
+          toast("手入力を消しました（保存済みのパスを使います）");
         } else {
-          updateSettingsUI();
           toast("手入力を消しました");
         }
+        renderMonthNotice();
       });
       $("btnLoadDbxMonth").addEventListener("click", function () {
         if (!dbx.connected()) { toast("まだDropboxに接続していません"); return; }
@@ -1632,7 +1609,7 @@
         resolveFolder().then(function (f) {
           updateSettingsUI();
           if (f) proceed();
-          else toast("日記フォルダが見つかりませんでした。パスを指定してください");
+          else toast("日記フォルダが未設定です。設定でパスを入力してください");
         }).catch(function (e) {
           updateSettingsUI();
           failureToast("フォルダの確認に失敗しました", e, "フォルダ判定");
@@ -1646,7 +1623,32 @@
       });
 
       /* ================= init ================= */
-      loadText("202701.txt", SAMPLES["202701.txt"], "sample");
+      // Start with an empty calendar for the current month. No
+      // sample content is shown. When not connected, a quiet
+      // notice prompts the user to connect via Settings.
+      function showEmptyCurrentMonth() {
+        var now = new Date();
+        var y = now.getFullYear(), m = now.getMonth() + 1;
+        state.fileName = y + pad2(m) + ".txt";
+        state.fileYear = y;
+        state.fileMonth = m;
+        state.viewYear = y;
+        state.viewMonth = m;
+        state.model = { entries: new Map(), order: [] };
+        state.source = "none";
+        state.selected = dateKey(y, m, now.getDate());
+        state.edited = new Set();
+        state.rev = null;
+        state.monthExists = false;
+        state.conflict = false;
+        state.saveError = false;
+        state.lastSavedAt = null;
+        state.loadingKey = "";
+        state.loadError = null;
+        els.conflictBar.hidden = true;
+        renderAll();
+      }
+      showEmptyCurrentMonth();
       updateSettingsUI();
       if (dbx.connected()) {
         // Already connected on this device: open the current month.
@@ -1657,8 +1659,9 @@
             loadDropboxMonth(now.getFullYear(), now.getMonth() + 1);
           } else {
             refreshSaveStatus();
+            renderMonthNotice();
           }
-        }).catch(function () { refreshSaveStatus(); });
+        }).catch(function () { refreshSaveStatus(); renderMonthNotice(); });
       }
     </script>
   </body>
