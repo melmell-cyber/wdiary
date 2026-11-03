@@ -1,0 +1,1665 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>日記アプリ（wDiary連携）</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --panel: #f7fafc;
+        --ink: #22303c;
+        --ink-soft: #5b6b78;
+        --accent: #1f7ab8;
+        --accent-soft: #e3f0f8;
+        --accent-strong: #1668a0;
+        --line: #d7e3ec;
+        --sun: #d64545;
+        --sat: #2b6cb0;
+        --today-bg: #fdecec;
+        --sel-bg: #1f7ab8;
+        --sel-ink: #ffffff;
+        --warn: #b45309;
+        --warn-bg: #fdf3e0;
+        --thumb-bg: #eef4f8;
+        --shadow: 0 10px 30px rgba(20, 50, 80, .18);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #141a20;
+          --panel: #1b242d;
+          --ink: #e6eef4;
+          --ink-soft: #9db0bf;
+          --accent: #5aa9dd;
+          --accent-soft: #22394c;
+          --accent-strong: #8cc4ec;
+          --line: #31424f;
+          --sun: #f08a8a;
+          --sat: #8ab8e8;
+          --today-bg: #4a2b2b;
+          --sel-bg: #2b6ea6;
+          --sel-ink: #ffffff;
+          --warn: #f0b35e;
+          --warn-bg: #3d2f16;
+          --thumb-bg: #22313d;
+          --shadow: 0 10px 30px rgba(0, 0, 0, .5);
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Noto Sans JP", sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+      button { font: inherit; cursor: pointer; }
+      .app { max-width: 1180px; margin: 0 auto; padding: 14px 16px 40px; }
+
+      /* ---------- toolbar ---------- */
+      .toolbar {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        padding-bottom: 12px; border-bottom: 2px solid var(--accent-soft);
+      }
+      .filename {
+        font-weight: 700; color: var(--accent-strong); font-size: 17px;
+        margin-right: 4px; word-break: break-all;
+      }
+      .dirty-dot {
+        display: none; align-items: center; gap: 5px;
+        font-size: 12px; color: var(--warn); font-weight: 700;
+      }
+      .dirty-dot.on { display: inline-flex; }
+      .dirty-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+      .save-status { font-size: 12.5px; color: var(--ink-soft); }
+      .save-status.warn { color: var(--warn); font-weight: 700; }
+      .spacer { flex: 1; }
+      .btn {
+        border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+        border-radius: 8px; padding: 8px 13px; font-size: 14px; line-height: 1.2;
+      }
+      .btn:hover { border-color: var(--accent); color: var(--accent-strong); }
+      .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; }
+      .btn.primary:hover { background: var(--accent-strong); color: #fff; }
+      .btn:disabled { opacity: .45; cursor: default; }
+      .btn:disabled:hover { border-color: var(--line); color: var(--ink); }
+      .btn svg.gear { width: 15px; height: 15px; vertical-align: -2px; margin-right: 5px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+      /* ---------- conflict bar ---------- */
+      .conflict-bar {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        background: var(--warn-bg); color: var(--ink);
+        border: 1px solid var(--warn); border-radius: 10px;
+        padding: 12px 14px; margin-top: 14px; font-size: 14px; line-height: 1.6;
+      }
+      .conflict-bar[hidden] { display: none; }
+      .conflict-bar .cb-text { flex: 1 1 260px; font-weight: 700; color: var(--warn); }
+
+      /* ---------- layout ---------- */
+      .layout { display: grid; grid-template-columns: 300px 1fr; gap: 28px; margin-top: 18px; align-items: start; }
+      @media (max-width: 759px) {
+        .layout { grid-template-columns: 1fr; gap: 20px; }
+      }
+
+      /* ---------- calendar ---------- */
+      .cal-head { display: flex; align-items: baseline; gap: 10px; }
+      .cal-year { font-size: 14px; color: var(--ink-soft); }
+      .cal-month { font-size: 40px; font-weight: 700; color: var(--accent-strong); line-height: 1; }
+      .cal-month-en { font-size: 14px; color: var(--ink-soft); }
+      .cal-nav { margin-left: auto; display: flex; gap: 6px; }
+      .cal-nav button {
+        border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+        width: 34px; height: 34px; border-radius: 8px; font-size: 16px; line-height: 1;
+      }
+      .cal-nav button:hover { border-color: var(--accent); color: var(--accent-strong); }
+      .cal-today-link {
+        background: none; border: none; color: var(--accent); font-size: 13px; padding: 4px 2px;
+      }
+      table.cal { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+      table.cal th { font-size: 13px; font-weight: 400; color: var(--ink-soft); padding: 6px 0; }
+      table.cal th.sun { color: var(--sun); }
+      table.cal th.sat { color: var(--sat); }
+      table.cal td { padding: 2px; }
+      .day {
+        width: 100%; aspect-ratio: 1 / 1; max-height: 44px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+        background: none; border: 2px solid transparent; border-radius: 8px;
+        font-size: 15px; color: var(--ink); padding: 0;
+      }
+      .day.sun { color: var(--sun); }
+      .day.sat { color: var(--sat); }
+      .day.other { visibility: hidden; }
+      .day:hover { border-color: var(--line); }
+      .day.today { background: var(--today-bg); }
+      .day.selected { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+      .day .mark { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); visibility: hidden; }
+      .day.has-entry { font-weight: 700; }
+      .day.has-entry .mark { visibility: visible; }
+      .cal-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; line-height: 1.6; }
+
+      /* ---------- editor pane ---------- */
+      .date-title { font-size: 24px; color: var(--accent-strong); font-weight: 700; margin: 2px 0 0; }
+      .date-title .dow { font-size: 15px; font-weight: 400; color: var(--ink-soft); }
+      .tabs { display: flex; gap: 4px; margin: 14px 0 0; border-bottom: 1px solid var(--line); }
+      .tab {
+        border: none; background: none; padding: 8px 16px; font-size: 14px; color: var(--ink-soft);
+        border-bottom: 3px solid transparent; margin-bottom: -1px;
+      }
+      .tab.active { color: var(--accent-strong); font-weight: 700; border-bottom-color: var(--accent); }
+      .preview { padding: 16px 2px 8px; min-height: 220px; }
+      .preview .p-line { font-size: 16.5px; line-height: 1.75; margin: 0 0 2px; white-space: pre-wrap; word-break: break-word; }
+      .preview .p-head {
+        font-size: 25px; font-weight: 700; color: var(--accent-strong);
+        line-height: 1.4; margin: 14px 0 6px;
+      }
+      .preview .p-head:first-child { margin-top: 0; }
+      .preview .p-blank { height: 14px; }
+      .preview .p-empty { color: var(--ink-soft); font-size: 15px; }
+      .thumb {
+        display: inline-flex; flex-direction: column; align-items: center; gap: 6px;
+        border: 1px solid var(--line); background: var(--thumb-bg); border-radius: 8px;
+        padding: 12px 14px 10px; margin: 8px 0; max-width: 200px; text-align: center;
+      }
+      .thumb svg { width: 44px; height: 44px; stroke: var(--ink-soft); }
+      .thumb img { display: block; max-width: 168px; max-height: 168px; width: auto; height: auto; border-radius: 4px; }
+      .thumb .thumb-name { font-size: 11.5px; color: var(--ink-soft); word-break: break-all; line-height: 1.4; }
+      textarea {
+        width: 100%; min-height: 300px; resize: vertical;
+        border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink);
+        font: inherit; font-size: 16px; line-height: 1.8; padding: 14px;
+        margin-top: 14px;
+      }
+      textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      .edit-help { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin-top: 8px; }
+      .month-missing {
+        border: 1px dashed var(--line); border-radius: 10px; padding: 26px 20px; margin-top: 16px;
+        color: var(--ink-soft); font-size: 15px; line-height: 1.8; background: var(--panel);
+      }
+      .month-missing strong { color: var(--ink); }
+      .month-missing .btn { margin-top: 12px; }
+
+      /* ---------- month notice (file missing on Dropbox) ---------- */
+      .month-notice {
+        display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+        border: 1px solid var(--accent); background: var(--accent-soft);
+        border-radius: 10px; padding: 12px 14px; margin-top: 14px;
+        font-size: 14px; line-height: 1.7; color: var(--ink);
+      }
+      .month-notice[hidden] { display: none; }
+      .month-notice .mn-text { flex: 1 1 300px; }
+      .month-notice .mn-text strong { display: block; color: var(--accent-strong); }
+      .toast {
+        position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+        background: var(--ink); color: var(--bg); padding: 11px 20px; border-radius: 999px;
+        font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+        box-shadow: var(--shadow); max-width: 90vw; text-align: center; z-index: 60;
+      }
+      .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+      /* ---------- overlays ---------- */
+      .overlay {
+        position: fixed; inset: 0; background: rgba(10, 18, 26, .82);
+        display: none; align-items: center; justify-content: center; z-index: 50; padding: 20px;
+        overflow-y: auto;
+      }
+      .overlay.open { display: flex; }
+      .overlay-box {
+        background: var(--bg); color: var(--ink); border-radius: 12px; padding: 28px 24px;
+        max-width: 520px; width: 100%; text-align: center; box-shadow: var(--shadow);
+        margin: auto;
+      }
+      .overlay-box svg.ph { width: 72px; height: 72px; stroke: var(--ink-soft); }
+      .overlay-box .ov-name { font-weight: 700; margin: 12px 0 6px; word-break: break-all; }
+      .overlay-box .ov-note { font-size: 13px; color: var(--ink-soft); line-height: 1.7; }
+      .overlay-box .ov-img { display: block; max-width: 100%; max-height: 62vh; width: auto; height: auto; margin: 0 auto; border-radius: 6px; }
+
+      /* ---------- settings ---------- */
+      .settings-box { max-width: 600px; text-align: left; }
+      .settings-title { font-size: 20px; color: var(--accent-strong); margin: 0 0 6px; }
+      .set-sec { border-top: 1px solid var(--line); padding: 16px 0 6px; margin-top: 14px; }
+      .set-sec h3 { font-size: 15.5px; margin: 0 0 8px; color: var(--accent-strong); }
+      .set-status { font-size: 14px; margin: 0 0 10px; }
+      .set-status .ok { color: var(--accent-strong); font-weight: 700; }
+      .set-label { display: block; font-size: 13px; color: var(--ink-soft); margin: 10px 0 4px; }
+      .set-input {
+        width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink);
+        font: inherit; font-size: 15px; padding: 9px 11px;
+      }
+      .set-input:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+      .set-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+      .set-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; margin: 10px 0 4px; }
+      .settings-close-row { margin-top: 18px; text-align: right; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="toolbar">
+        <span class="filename" id="fileName">—</span>
+        <span class="dirty-dot" id="dirtyDot">未保存の変更</span>
+        <span class="save-status" id="saveStatus">Dropbox未接続</span>
+        <span class="spacer"></span>
+        <button class="btn" id="btnSampleDec" type="button">サンプル 2026/12</button>
+        <button class="btn" id="btnSampleJan" type="button">サンプル 2027/01</button>
+        <button class="btn" id="btnOpen" type="button">ファイルを開く</button>
+        <button class="btn primary" id="btnDownload" type="button">書き出してダウンロード</button>
+        <button class="btn" id="btnSettings" type="button"><svg class="gear" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>設定</button>
+        <input type="file" id="fileInput" accept=".txt,text/plain" hidden />
+      </div>
+
+      <div class="conflict-bar" id="conflictBar" hidden>
+        <span class="cb-text">PC側で変更されています。読み直してください。</span>
+        <span>この月のファイルがPC側で先に変更されていたため、上書きせずに自動保存を止めました。どちらで続けるか選んでください。</span>
+        <button class="btn" id="btnConflictReload" type="button">PC側の内容を読み直す</button>
+        <button class="btn" id="btnConflictOverwrite" type="button">自分の内容で上書きする</button>
+      </div>
+
+      <div class="layout">
+        <section aria-label="カレンダー">
+          <div class="cal-head">
+            <div>
+              <div class="cal-year" id="calYear">----年</div>
+              <div><span class="cal-month" id="calMonth">-</span> <span class="cal-month-en" id="calMonthEn"></span></div>
+            </div>
+            <div class="cal-nav">
+              <button type="button" id="btnPrevMonth" aria-label="前月">‹</button>
+              <button type="button" id="btnNextMonth" aria-label="次月">›</button>
+            </div>
+          </div>
+          <div><button class="cal-today-link" type="button" id="btnToday">今日へ移動</button></div>
+          <table class="cal" id="calTable" aria-label="月間カレンダー"></table>
+          <p class="cal-note">● の付いた日は日記があります。日をタップすると開きます。日記のない日は、新しく書くことができます。</p>
+        </section>
+
+        <section aria-label="日記の表示と編集">
+          <h1 class="date-title" id="dateTitle">—</h1>
+          <div class="month-notice" id="monthNotice" hidden></div>
+          <div id="editorArea">
+            <div class="tabs" role="tablist">
+              <button class="tab active" id="tabPreview" type="button" role="tab">プレビュー</button>
+              <button class="tab" id="tabEdit" type="button" role="tab">編集</button>
+            </div>
+            <div class="preview" id="preview"></div>
+            <div id="editWrap" hidden>
+              <textarea id="editor" aria-label="その日の本文"></textarea>
+              <p class="edit-help">
+                見出しにしたい行は行頭に「*」を付けます。画像は「[[ファイル名]]」の行で表します（画像の挿入はできません）。<br />
+                本文をすべて空にすると、その日の記録はファイルから削除されます。Dropbox表示中は、編集が止まると自動で保存されます。
+              </p>
+            </div>
+          </div>
+          <div class="month-missing" id="monthMissing" hidden></div>
+        </section>
+      </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+      <div class="overlay-box">
+        <img class="ov-img" id="ovImg" alt="" hidden />
+        <svg class="ph" id="ovPlaceholder" viewBox="0 0 24 24" fill="none" stroke-width="1.4" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+          <circle cx="9" cy="10" r="1.6"></circle>
+          <path d="M3 17l5.5-5 4 3.5L17 11l4 4"></path>
+        </svg>
+        <div class="ov-name" id="ovName"></div>
+        <p class="ov-note" id="ovNote">この画像の実ファイルは読み込まれていないため、ここに大きく表示されます。</p>
+        <button class="btn" id="btnCloseOverlay" type="button">閉じる</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="settingsOverlay">
+      <div class="overlay-box settings-box">
+        <h2 class="settings-title">設定</h2>
+
+        <section class="set-sec">
+          <h3>Dropbox接続</h3>
+          <p class="set-status" id="dbxStatus">未接続</p>
+          <label class="set-label" for="appKeyInput">App key（Dropbox App Consoleで作成した自分のアプリのもの）</label>
+          <input type="text" id="appKeyInput" class="set-input" autocomplete="off" spellcheck="false" placeholder="App key を入力" />
+          <div class="set-row">
+            <button class="btn" id="btnSaveAppKey" type="button">App keyを保存</button>
+            <button class="btn primary" id="btnConnect" type="button">Dropboxに接続</button>
+          </div>
+          <p class="set-note">「Dropboxに接続」を押すと、Dropboxの認可画面が新しいタブで開きます。ログインして許可するとコードが表示されるので、コピーして下の欄に貼り付けてください。アプリの権限は files.metadata.read / files.content.read / files.content.write を有効にしておいてください。</p>
+          <label class="set-label" for="authCodeInput">認可コード</label>
+          <input type="text" id="authCodeInput" class="set-input" autocomplete="off" spellcheck="false" placeholder="Dropboxに表示されたコードを貼り付け" />
+          <div class="set-row">
+            <button class="btn primary" id="btnCompleteAuth" type="button">接続を完了</button>
+            <button class="btn" id="btnDisconnect" type="button">接続を解除</button>
+          </div>
+          <p class="set-note">App keyと接続トークンは、この端末のブラウザ内にだけ保存されます。日記のデータがこのアプリ以外のサーバーへ送られることはありません。</p>
+          <p class="set-note" id="storageWarn" hidden>注意：このブラウザでは端末への保存がブロックされているため、App keyと接続トークンは画面を閉じると消えます。その場合は、開くたびに App key の入力と接続をやり直してください。</p>
+        </section>
+
+        <section class="set-sec">
+          <h3>日記フォルダ</h3>
+          <p class="set-status" id="folderStatus">—</p>
+          <label class="set-label" for="folderInput">フォルダパス</label>
+          <input type="text" id="folderInput" class="set-input" autocomplete="off" spellcheck="false" placeholder="Dropbox内の日記フォルダのパス" />
+          <div class="set-row">
+            <button class="btn" id="btnSaveFolder" type="button">このパスを使う</button>
+            <button class="btn" id="btnClearFolder" type="button">手入力を消す</button>
+          </div>
+          <p class="set-note">日記フォルダの場所はここで指定します。Dropbox内のフォルダパスをそのまま入力してください。一度指定すれば、この端末では次回から自動で使われます。</p>
+        </section>
+
+        <section class="set-sec">
+          <h3>Dropboxの操作</h3>
+          <div class="set-row">
+            <button class="btn" id="btnLoadDbxMonth" type="button">Dropboxの今月を読み込む</button>
+          </div>
+          <p class="set-note">サンプルや端末のファイルを開いているときに、Dropboxの日記表示へ戻ります。「ファイルを開く」「書き出してダウンロード」「サンプル」は予備の手段として残しています。</p>
+        </section>
+
+        <div class="settings-close-row">
+          <button class="btn" id="btnCloseSettings" type="button">閉じる</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+
+    <script>
+      "use strict";
+
+      /* ================= wDiary format =================
+         File: UTF-16LE (BOM), CRLF only, trailing CRLF.
+         A day starts with a "YYYY/MM/DD" line. Body lines each carry
+         one leading tab. Days are separated by one completely empty
+         line; a blank line inside a body is a tab-only line. */
+
+      var DATE_LINE = /^\d{4}\/\d{2}\/\d{2}$/;
+
+      function pad2(n) { return (n < 10 ? "0" : "") + n; }
+      function dateKey(y, m, d) { return y + "/" + pad2(m) + "/" + pad2(d); }
+      var DOW = ["日", "月", "火", "水", "木", "金", "土"];
+      var MONTH_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+      function parseDiary(text) {
+        // text: decoded string, any line endings -> normalize to lines
+        var lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        var entries = new Map(); // dateKey -> array of body lines (tab stripped)
+        var order = [];
+        var i = 0;
+        while (i < lines.length) {
+          var line = lines[i];
+          if (DATE_LINE.test(line)) {
+            var body = [];
+            i++;
+            while (i < lines.length && lines[i] !== "" && !DATE_LINE.test(lines[i])) {
+              var b = lines[i];
+              if (b.charAt(0) === "\t") b = b.slice(1);
+              body.push(b);
+              i++;
+            }
+            if (!entries.has(line)) order.push(line);
+            entries.set(line, body);
+          } else {
+            i++;
+          }
+        }
+        return { entries: entries, order: order };
+      }
+
+      function serializeDiary(model, editedDays) {
+        // Rebuild from the block structure: unchanged days keep their
+        // exact original body lines; edited days get re-tabbed lines;
+        // new days are inserted in date order.
+        var blocks = [];
+        model.order.forEach(function (key) {
+          blocks.push({ key: key, body: model.entries.get(key) || [] });
+        });
+        // add days that exist in entries but not in original order (new days)
+        model.entries.forEach(function (body, key) {
+          if (model.order.indexOf(key) === -1) blocks.push({ key: key, body: body });
+        });
+        blocks.sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
+        var parts = [];
+        blocks.forEach(function (blk) {
+          if (!blk.body || blk.body.length === 0) return; // emptied day is dropped
+          var s = blk.key;
+          blk.body.forEach(function (line) { s += "\r\n\t" + line; });
+          s += "\r\n";
+          parts.push(s);
+        });
+        return parts.join("\r\n");
+      }
+
+      function encodeUTF16LE(str) {
+        var buf = new Uint8Array(2 + str.length * 2);
+        buf[0] = 0xFF; buf[1] = 0xFE; // BOM
+        for (var i = 0; i < str.length; i++) {
+          var c = str.charCodeAt(i);
+          buf[2 + i * 2] = c & 0xFF;
+          buf[2 + i * 2 + 1] = (c >> 8) & 0xFF;
+        }
+        return buf;
+      }
+
+      function decodeFile(arrayBuffer) {
+        var bytes = new Uint8Array(arrayBuffer);
+        if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) {
+          return new TextDecoder("utf-16le").decode(arrayBuffer);
+        }
+        if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+          return new TextDecoder("utf-8").decode(arrayBuffer);
+        }
+        // Heuristic: UTF-16LE text has a 0x00 in most odd positions.
+        var zeros = 0, checked = 0;
+        for (var i = 1; i < Math.min(bytes.length, 400); i += 2) { checked++; if (bytes[i] === 0) zeros++; }
+        if (checked > 0 && zeros / checked > 0.3) return new TextDecoder("utf-16le").decode(arrayBuffer);
+        return new TextDecoder("utf-8").decode(arrayBuffer);
+      }
+
+      /* ================= sample data (user's real test files) ================= */
+
+      function buildRaw(pairs) {
+        var parts = [];
+        pairs.forEach(function (p) {
+          var s = p[0];
+          p[1].forEach(function (line) { s += "\r\n\t" + line; });
+          s += "\r\n";
+          parts.push(s);
+        });
+        return parts.join("\r\n");
+      }
+
+      var SAMPLES = {
+        "202612.txt": buildRaw([
+          ["2026/12/01", ["これはテストです"]],
+          ["2026/12/10", ["これはテストですその２"]],
+          ["2026/12/24", ["これはテストですその３"]]
+        ]),
+        "202701.txt": buildRaw([
+          ["2027/01/06", ["あめんぼあかない", "あああ"]],
+          ["2027/01/08", ["*あいうえお", "かきくけこ", "サシスセソ", "*見出しです", "内容です", "[[20270108_0001.png]]", ""]],
+          ["2027/01/24", ["これはテストですその４"]]
+        ])
+      };
+
+      /* ================= state ================= */
+
+      var state = {
+        fileName: "",
+        fileYear: 0, fileMonth: 0,
+        model: null,            // { entries: Map, order: [] }
+        viewYear: 0, viewMonth: 0,
+        selected: "",           // dateKey
+        edited: new Set(),
+        mode: "preview",        // "preview" | "edit"
+        source: "sample",       // "sample" | "local" | "dropbox"
+        rev: null,              // Dropbox rev of the loaded month file
+        monthExists: false,     // whether the month file exists on Dropbox
+        conflict: false,        // Dropbox rev conflict: autosave stopped
+        saving: false,
+        saveError: false,
+        lastSavedAt: null,      // Date of last successful Dropbox save
+        loadingKey: "",         // "YYYY/MM" of the Dropbox month load in flight, "" when idle
+        loadError: null         // { key: "YYYY/MM", message } of the last failed Dropbox month load
+      };
+
+      var $ = function (id) { return document.getElementById(id); };
+      var els = {
+        fileName: $("fileName"), dirtyDot: $("dirtyDot"), saveStatus: $("saveStatus"),
+        calYear: $("calYear"), calMonth: $("calMonth"), calMonthEn: $("calMonthEn"),
+        calTable: $("calTable"), dateTitle: $("dateTitle"),
+        preview: $("preview"), editor: $("editor"), editWrap: $("editWrap"),
+        editorArea: $("editorArea"), monthMissing: $("monthMissing"),
+        monthNotice: $("monthNotice"),
+        tabPreview: $("tabPreview"), tabEdit: $("tabEdit"),
+        btnDownload: $("btnDownload"), toast: $("toast"),
+        overlay: $("overlay"), ovName: $("ovName"), ovImg: $("ovImg"),
+        ovPlaceholder: $("ovPlaceholder"), ovNote: $("ovNote"),
+        conflictBar: $("conflictBar"),
+        settingsOverlay: $("settingsOverlay"),
+        dbxStatus: $("dbxStatus"), folderStatus: $("folderStatus"),
+        appKeyInput: $("appKeyInput"), authCodeInput: $("authCodeInput"),
+        folderInput: $("folderInput")
+      };
+
+      function toast(msg) {
+        els.toast.textContent = msg;
+        els.toast.classList.add("show");
+        clearTimeout(toast._t);
+        toast._t = setTimeout(function () { els.toast.classList.remove("show"); }, 2600);
+      }
+
+      function fmtTime(d) { return pad2(d.getHours()) + ":" + pad2(d.getMinutes()); }
+
+      /* Save status line in the toolbar. */
+      function refreshSaveStatus() {
+        var el = els.saveStatus;
+        el.classList.remove("warn");
+        if (!dbx.connected()) { el.textContent = "Dropbox未接続"; return; }
+        if (state.source !== "dropbox") { el.textContent = "Dropbox接続中（いまはサンプル／端末ファイルを表示中）"; return; }
+        if (state.conflict) { el.textContent = "PC側で変更されています"; el.classList.add("warn"); return; }
+        if (state.saving) { el.textContent = "保存中…"; return; }
+        if (state.saveError) { el.textContent = "保存できませんでした"; el.classList.add("warn"); return; }
+        if (state.edited.size > 0) { el.textContent = "未保存の変更あり"; return; }
+        if (!state.monthExists) { el.textContent = "Dropbox接続中（この月のファイルはまだありません）"; return; }
+        if (state.lastSavedAt) { el.textContent = "保存しました（" + fmtTime(state.lastSavedAt) + "）"; return; }
+        el.textContent = "Dropbox接続中";
+      }
+
+      function isLoadedMonth() {
+        return state.viewYear === state.fileYear && state.viewMonth === state.fileMonth;
+      }
+
+      function applyLoaded(fileName, model, source) {
+        state.fileName = fileName;
+        state.model = model;
+        state.source = source;
+        state.edited = new Set();
+        state.conflict = false;
+        state.saveError = false;
+        state.loadError = null;
+        state.loadingKey = "";
+        els.conflictBar.hidden = true;
+        var m = /^(\d{4})(\d{2})\.txt$/i.exec(fileName);
+        if (m) {
+          state.fileYear = parseInt(m[1], 10);
+          state.fileMonth = parseInt(m[2], 10);
+        } else if (model.order.length) {
+          var first = model.order[0].split("/");
+          state.fileYear = parseInt(first[0], 10);
+          state.fileMonth = parseInt(first[1], 10);
+        } else {
+          var now = new Date();
+          state.fileYear = now.getFullYear();
+          state.fileMonth = now.getMonth() + 1;
+        }
+        state.viewYear = state.fileYear;
+        state.viewMonth = state.fileMonth;
+        // Select: today if it is in this month, otherwise the first entry day, else the 1st.
+        var now2 = new Date();
+        var todayKey = dateKey(now2.getFullYear(), now2.getMonth() + 1, now2.getDate());
+        if (state.fileYear === now2.getFullYear() && state.fileMonth === now2.getMonth() + 1) {
+          state.selected = todayKey;
+        } else if (model.order.length) {
+          state.selected = model.order[0];
+        } else {
+          state.selected = dateKey(state.fileYear, state.fileMonth, 1);
+        }
+        renderAll();
+      }
+
+      function loadText(fileName, text, source) {
+        applyLoaded(fileName, parseDiary(text.replace(/^\uFEFF/, "")), source);
+      }
+
+      /* ================= rendering ================= */
+
+      function renderAll() {
+        els.fileName.textContent = state.fileName || "（ファイル未選択）";
+        els.dirtyDot.classList.toggle("on", state.edited.size > 0 && state.source !== "dropbox");
+        refreshSaveStatus();
+        renderCalendar();
+        renderEditor();
+      }
+
+      function renderCalendar() {
+        var y = state.viewYear, m = state.viewMonth;
+        els.calYear.textContent = y + "年";
+        els.calMonth.textContent = m;
+        els.calMonthEn.textContent = MONTH_EN[m - 1];
+        var firstDow = new Date(y, m - 1, 1).getDay();
+        var daysInMonth = new Date(y, m, 0).getDate();
+        var now = new Date();
+        var html = "<tr>";
+        DOW.forEach(function (d, i) {
+          html += '<th class="' + (i === 0 ? "sun" : i === 6 ? "sat" : "") + '">' + d + "</th>";
+        });
+        html += "</tr>";
+        var cell = 0;
+        html += "<tr>";
+        for (var i = 0; i < firstDow; i++) { html += '<td><span class="day other"></span></td>'; cell++; }
+        for (var d = 1; d <= daysInMonth; d++) {
+          var key = dateKey(y, m, d);
+          var dow = new Date(y, m - 1, d).getDay();
+          var cls = "day";
+          if (dow === 0) cls += " sun";
+          if (dow === 6) cls += " sat";
+          if (isLoadedMonth() && state.model.entries.has(key)) cls += " has-entry";
+          if (key === state.selected) cls += " selected";
+          if (y === now.getFullYear() && m === now.getMonth() + 1 && d === now.getDate()) cls += " today";
+          html += '<td><button type="button" class="' + cls + '" data-date="' + key + '">' + d + '<span class="mark"></span></button></td>';
+          cell++;
+          if (cell % 7 === 0 && d < daysInMonth) html += "</tr><tr>";
+        }
+        while (cell % 7 !== 0) { html += '<td><span class="day other"></span></td>'; cell++; }
+        html += "</tr>";
+        els.calTable.innerHTML = html;
+        var btns = els.calTable.querySelectorAll("button.day");
+        for (var j = 0; j < btns.length; j++) {
+          btns[j].addEventListener("click", function () {
+            selectDay(this.getAttribute("data-date"));
+          });
+        }
+      }
+
+      function selectDay(key) {
+        if (key === state.selected) return;
+        var doSelect = function () {
+          state.selected = key;
+          renderCalendar();
+          renderEditor();
+        };
+        // Flush pending edits to Dropbox before moving away.
+        if (state.source === "dropbox" && state.edited.size > 0 && !state.conflict) {
+          saveToDropbox().then(doSelect, doSelect);
+        } else {
+          doSelect();
+        }
+      }
+
+      function renderEditor() {
+        var parts = state.selected.split("/");
+        var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10), d = parseInt(parts[2], 10);
+        var dow = new Date(y, m - 1, d).getDay();
+        els.dateTitle.innerHTML = "";
+        els.dateTitle.appendChild(document.createTextNode(y + "/" + pad2(m) + "/" + pad2(d) + " "));
+        var dowSpan = document.createElement("span");
+        dowSpan.className = "dow";
+        dowSpan.textContent = "（" + DOW[dow] + "）";
+        els.dateTitle.appendChild(dowSpan);
+
+        if (!isLoadedMonth()) {
+          els.editorArea.hidden = true;
+          els.monthNotice.hidden = true;
+          els.monthMissing.hidden = false;
+          els.monthMissing.innerHTML = "";
+          var vKey = y + "/" + pad2(m);
+          var strong = document.createElement("strong");
+          if (state.source === "dropbox" && state.loadError && state.loadError.key === vKey) {
+            // The load for this month finished with an error: say so
+            // persistently (a transient toast is easy to miss) and
+            // offer a retry, instead of claiming it is still loading.
+            strong.textContent = y + "年" + m + "月を読み込めませんでした。";
+            els.monthMissing.appendChild(strong);
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(document.createTextNode(
+              state.loadError.message + " 通信や接続の状態を確認して、もう一度読み込んでください。"));
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(buildRetryButton());
+          } else if (state.source === "dropbox" && state.loadingKey === vKey) {
+            strong.textContent = y + "年" + m + "月のファイルを読み込んでいます。";
+            els.monthMissing.appendChild(strong);
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(document.createTextNode(
+              "Dropboxから読み込み中です。しばらく待っても終わらない場合は、通信の状態を確認してから月を移動し直すか、設定で接続と日記フォルダを確認してください。"));
+          } else if (state.source === "dropbox") {
+            strong.textContent = y + "年" + m + "月のファイルは、まだ読み込まれていません。";
+            els.monthMissing.appendChild(strong);
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(document.createTextNode(
+              "Dropboxから読み込みます。"));
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(buildRetryButton());
+          } else {
+            strong.textContent = y + "年" + m + "月のファイルは、まだ読み込まれていません。";
+            els.monthMissing.appendChild(strong);
+            els.monthMissing.appendChild(document.createElement("br"));
+            els.monthMissing.appendChild(document.createTextNode(
+              "いま開いているのは " + state.fileName + " です。この月を編集するには、上の「ファイルを開く」から " +
+              y + pad2(m) + ".txt を選ぶか、サンプルボタンを押してください。"));
+          }
+          return;
+        }
+        els.editorArea.hidden = false;
+        els.monthMissing.hidden = true;
+        renderMonthNotice();
+
+        var body = state.model.entries.get(state.selected);
+        var lines = body ? body.slice() : [];
+        // editor textarea
+        if (document.activeElement !== els.editor) {
+          els.editor.value = lines.join("\n");
+        }
+        renderPreview(lines);
+        setMode(state.mode);
+      }
+
+      /* 「もう一度読み込む」 button for the viewed month (Dropbox). */
+      function buildRetryButton() {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn";
+        btn.textContent = "もう一度読み込む";
+        btn.addEventListener("click", function () {
+          var parts = state.selected.split("/");
+          var d = parseInt(parts[2], 10) || 1;
+          loadDropboxMonth(state.viewYear, state.viewMonth, d);
+        });
+        return btn;
+      }
+
+      /* Persistent banner for a Dropbox month whose file does not
+         exist yet (download answered path/not_found). This is NOT a
+         load error — the month is loaded and editable, and saving
+         creates the file. It must stay distinguishable from the
+         load-error panel above: a toast alone disappears in seconds
+         and the empty calendar looks like a failure. One common
+         cause is on the PC side: wDiary wrote the month file, but
+         Dropbox on the PC has not finished uploading it, so the
+         cloud (and therefore this app) cannot see it yet. */
+      function renderMonthNotice() {
+        var show = state.source === "dropbox" && dbx.connected() && isLoadedMonth() && !state.monthExists;
+        if (!show) { els.monthNotice.hidden = true; return; }
+        var y = state.fileYear, m = state.fileMonth;
+        var fname = y + pad2(m) + ".txt";
+        els.monthNotice.innerHTML = "";
+        var text = document.createElement("span");
+        text.className = "mn-text";
+        var strong = document.createElement("strong");
+        strong.textContent = y + "年" + m + "月のファイル（" + fname + "）は、Dropboxにまだありません。";
+        text.appendChild(strong);
+        text.appendChild(document.createTextNode(
+          "読み込みエラーではありません。このまま日記を書くことができ、保存するとファイルが新規作成されます。" +
+          "PCの wDiary でこの月をすでに書いているのにこの表示になる場合は、PC側の Dropbox でそのファイルの同期がまだ終わっていない可能性があります。" +
+          "エクスプローラーで " + fname + " の横のアイコンが緑のチェック（同期完了）になっているか確認し、同期が終わってから読み直してください。"));
+        els.monthNotice.appendChild(text);
+        els.monthNotice.appendChild(buildRetryButton());
+        els.monthNotice.hidden = false;
+      }
+
+      var IMG_LINE = /^\[\[(.+)\]\]$/;
+      var IMG_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.4" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M3 17l5.5-5 4 3.5L17 11l4 4"></path></svg>';
+
+      function renderPreview(lines) {
+        els.preview.innerHTML = "";
+        if (!lines.length || (lines.length === 1 && lines[0] === "")) {
+          var empty = document.createElement("p");
+          empty.className = "p-empty";
+          empty.textContent = "この日の日記はまだありません。「編集」タブから書けます。";
+          els.preview.appendChild(empty);
+          return;
+        }
+        lines.forEach(function (line) {
+          var img = IMG_LINE.exec(line);
+          if (img) {
+            els.preview.appendChild(buildThumb(img[1]));
+          } else if (line.charAt(0) === "*") {
+            var h = document.createElement("p");
+            h.className = "p-head";
+            h.textContent = line.slice(1);
+            els.preview.appendChild(h);
+          } else if (line === "") {
+            var blank = document.createElement("div");
+            blank.className = "p-blank";
+            els.preview.appendChild(blank);
+          } else {
+            var p = document.createElement("p");
+            p.className = "p-line";
+            p.textContent = line;
+            els.preview.appendChild(p);
+          }
+        });
+      }
+
+      /* Image thumbnail: shows the real image when it could be fetched
+         from Dropbox (<folder>/data/<name>), else the placeholder box. */
+      function buildThumb(name) {
+        var wrap = document.createElement("div");
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "thumb";
+        btn.setAttribute("aria-label", "画像 " + name + " を拡大表示");
+        btn.innerHTML = IMG_ICON;
+        var nm = document.createElement("span");
+        nm.className = "thumb-name";
+        nm.textContent = name;
+        btn.appendChild(nm);
+        btn.addEventListener("click", function () { openImageOverlay(name, btn); });
+        wrap.appendChild(btn);
+        if (state.source === "dropbox") fetchDbxImage(name, btn);
+        return wrap;
+      }
+
+      function setMode(mode) {
+        state.mode = mode;
+        els.tabPreview.classList.toggle("active", mode === "preview");
+        els.tabEdit.classList.toggle("active", mode === "edit");
+        els.preview.hidden = mode !== "preview";
+        els.editWrap.hidden = mode !== "edit";
+        if (mode === "edit") {
+          var body = state.model.entries.get(state.selected);
+          els.editor.value = body ? body.join("\n") : "";
+        }
+      }
+
+      /* ================= Dropbox: storage =================
+         Everything lives in this device's localStorage only.
+         The App key is entered by the user in Settings; it is
+         never embedded in this page. No client_secret is used. */
+
+      var LS = {
+        appKey: "wdiary.dbx.appKey",
+        access: "wdiary.dbx.accessToken",
+        refresh: "wdiary.dbx.refreshToken",
+        expires: "wdiary.dbx.expiresAt",
+        folderManual: "wdiary.dbx.folderManual",
+        folderAuto: "wdiary.dbx.folderAuto"
+      };
+      var SS_VERIFIER = "wdiary.dbx.verifier";
+      var pkceVerifier = null; // in-memory copy: sessionStorage may be blocked too
+      var FOLDER_CANDIDATES = [];
+
+      /* Some browsers / in-app webviews block localStorage entirely
+         (sandboxed iframe, private mode, storage partitioning). A
+         blocked setItem used to fail silently here, so the save button
+         reported success while nothing was stored, and Connect then
+         complained the App key was missing. Keep an in-memory copy as
+         the session's source of truth so the flow works either way,
+         and probe once whether real persistence is available. */
+      var memStore = {};
+      var storagePersistent = (function () {
+        try {
+          var probe = "__wdiary_probe__";
+          localStorage.setItem(probe, "1");
+          var ok = localStorage.getItem(probe) === "1";
+          localStorage.removeItem(probe);
+          return ok;
+        } catch (e) { return false; }
+      })();
+
+      function lsGet(k) {
+        if (Object.prototype.hasOwnProperty.call(memStore, k)) return memStore[k];
+        try { return localStorage.getItem(k); } catch (e) { return null; }
+      }
+      function lsSet(k, v) {
+        memStore[k] = String(v);
+        try { localStorage.setItem(k, v); } catch (e) {}
+      }
+      function lsDel(k) {
+        delete memStore[k];
+        try { localStorage.removeItem(k); } catch (e) {}
+      }
+
+      var dbx = {
+        appKey: function () { return lsGet(LS.appKey) || ""; },
+        connected: function () { return !!lsGet(LS.refresh); },
+        folder: function () { return lsGet(LS.folderManual) || lsGet(LS.folderAuto) || ""; },
+        monthPath: function (y, m) {
+          var f = dbx.folder();
+          return f ? f + "/" + y + pad2(m) + ".txt" : "";
+        },
+        imagePath: function (name) {
+          var f = dbx.folder();
+          return f ? f + "/data/" + name : "";
+        }
+      };
+
+      /* Dropbox-API-Arg must be ASCII-only: escape non-ASCII as \uXXXX. */
+      function apiArg(obj) {
+        return JSON.stringify(obj).replace(/[\u0080-\uFFFF]/g, function (c) {
+          return "\\u" + ("0000" + c.charCodeAt(0).toString(16)).slice(-4);
+        });
+      }
+
+      function b64url(bytes) {
+        var s = "";
+        for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+        return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+
+      function storeTokens(json) {
+        if (json.access_token) {
+          lsSet(LS.access, json.access_token);
+          lsSet(LS.expires, String(Date.now() + (json.expires_in || 14400) * 1000));
+        }
+        if (json.refresh_token) lsSet(LS.refresh, json.refresh_token);
+      }
+
+      /* Classify a failure so the UI can say WHERE the connect flow
+         stopped and WHETHER Dropbox ever answered. A fetch() that
+         rejects with a TypeError ("Failed to fetch" / "Load failed")
+         means no HTTP response came back at all: the request never
+         reached Dropbox (offline, or the hosting / preview
+         environment blocks cross-origin calls). An HTTP error, by
+         contrast, is a real answer from Dropbox and carries its own
+         message (e.g. invalid_grant), which is shown as-is. */
+      function isNetworkFailure(e) {
+        if (!e) return false;
+        if (e.networkFailure) return true;
+        var m = String(e.message || e);
+        return e.name === "TypeError" || /failed to fetch|load failed|networkerror|network request failed/i.test(m);
+      }
+      function describeFailure(e) {
+        if (isNetworkFailure(e)) {
+          return "Dropboxまで通信が届きませんでした（応答がありません）。回線が切れているか、このプレビュー環境が外部への通信を制限している可能性があります。通常のSafariやホーム画面アプリでは制限されません";
+        }
+        return (e && e.message) ? e.message : String(e);
+      }
+      function stageError(stage, e) {
+        if (e && e.stage) return e; // keep the earliest stage that failed
+        var err = new Error(describeFailure(e));
+        err.stage = stage;
+        err.networkFailure = isNetworkFailure(e);
+        return err;
+      }
+      function failureToast(prefix, e, defaultStage) {
+        var stage = (e && e.stage) || defaultStage;
+        toast(prefix + (stage ? "【段階：" + stage + "】" : "") + describeFailure(e));
+      }
+
+      function tokenRequest(params) {
+        var body = new URLSearchParams(params);
+        return fetch("https://api.dropboxapi.com/oauth2/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: body.toString()
+        }).then(function (resp) {
+          return resp.json().catch(function () { return {}; }).then(function (json) {
+            if (!resp.ok) {
+              var msg = json.error_description || json.error || ("HTTP " + resp.status);
+              throw new Error(msg);
+            }
+            return json;
+          });
+        }).catch(function (e) {
+          throw stageError("トークン交換", e);
+        });
+      }
+
+      var refreshInFlight = null;
+      function refreshAccessToken() {
+        if (refreshInFlight) return refreshInFlight;
+        var rt = lsGet(LS.refresh);
+        if (!rt) return Promise.reject(new Error("not connected"));
+        refreshInFlight = tokenRequest({
+          grant_type: "refresh_token",
+          refresh_token: rt,
+          client_id: dbx.appKey()
+        }).then(function (json) {
+          storeTokens(json);
+          refreshInFlight = null;
+          return lsGet(LS.access);
+        }).catch(function (e) {
+          refreshInFlight = null;
+          throw e;
+        });
+        return refreshInFlight;
+      }
+
+      function ensureAccessToken() {
+        var tok = lsGet(LS.access);
+        var exp = parseInt(lsGet(LS.expires) || "0", 10);
+        if (tok && exp && Date.now() < exp - 60000) return Promise.resolve(tok);
+        return refreshAccessToken();
+      }
+
+      /* fetch with Bearer token; on 401 refresh once and retry. */
+      function dbxFetch(url, options, isRetry) {
+        return ensureAccessToken().then(function (tok) {
+          var opts = {};
+          for (var k in options) opts[k] = options[k];
+          opts.headers = {};
+          var h = options.headers || {};
+          for (var k2 in h) opts.headers[k2] = h[k2];
+          opts.headers["Authorization"] = "Bearer " + tok;
+          return fetch(url, opts).then(function (resp) {
+            if (resp.status === 401 && !isRetry) {
+              return refreshAccessToken().then(function () { return dbxFetch(url, options, true); });
+            }
+            return resp;
+          });
+        });
+      }
+
+      function dbxRpc(path, argObj) {
+        return dbxFetch("https://api.dropboxapi.com/2" + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(argObj)
+        }).then(function (resp) {
+          if (resp.status === 409) return null; // e.g. path/not_found
+          return resp.json().catch(function () { return null; }).then(function (json) {
+            if (!resp.ok) return null;
+            return json;
+          });
+        }).catch(function () { return null; });
+      }
+
+      function getMetadata(path) {
+        return dbxRpc("/files/get_metadata", { path: path, include_media_info: false, include_deleted: false });
+      }
+
+      /* Strict variant for folder resolution: a 409 still means
+         "not there" (null), but network failures and other HTTP
+         errors are thrown, so the caller can report the フォルダ判定
+         stage instead of mistaking a dead connection for a missing
+         folder (the lenient dbxRpc above swallows everything). */
+      function getMetadataStrict(path) {
+        return dbxFetch("https://api.dropboxapi.com/2/files/get_metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: path, include_media_info: false, include_deleted: false })
+        }).then(function (resp) {
+          if (resp.status === 409) return null; // path/not_found
+          return resp.json().catch(function () { return null; }).then(function (json) {
+            if (!resp.ok) {
+              throw new Error((json && (json.error_summary || json.error)) || ("HTTP " + resp.status));
+            }
+            return json;
+          });
+        });
+      }
+
+      /* The diary folder path is supplied manually in Settings. */
+      function resolveFolder() {
+        if (lsGet(LS.folderManual)) return Promise.resolve(lsGet(LS.folderManual));
+        if (lsGet(LS.folderAuto)) return Promise.resolve(lsGet(LS.folderAuto));
+        return Promise.resolve("");
+      }
+
+      /* ================= Dropbox: month load / save ================= */
+
+      function loadDropboxMonth(y, m, preferredDay) {
+        var path = dbx.monthPath(y, m);
+        if (!path) {
+          toast("日記フォルダが決まっていません。設定で確認してください");
+          return Promise.resolve(false);
+        }
+        // Display bookkeeping only: remember which month is loading
+        // (and clear the previous error) so the editor panel can tell
+        // 「読み込み中」 / 「読み込みエラー」 / 「ファイルなし」 apart.
+        state.loadingKey = y + "/" + pad2(m);
+        state.loadError = null;
+        if (state.viewYear === y && state.viewMonth === m && !isLoadedMonth()) renderEditor();
+        return dbxFetch("https://content.dropboxapi.com/2/files/download", {
+          method: "POST",
+          headers: { "Dropbox-API-Arg": apiArg({ path: path }) }
+        }).then(function (resp) {
+          if (resp.status === 409) {
+            // No file for this month yet: treat as an empty month.
+            finishLoad(null, null);
+            return true;
+          }
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          var meta = null;
+          try { meta = JSON.parse(resp.headers.get("dropbox-api-result") || "null"); } catch (e) {}
+          return resp.arrayBuffer().then(function (buf) {
+            finishLoad(decodeFile(buf), meta);
+            return true;
+          });
+        }).catch(function (e) {
+          state.loadingKey = "";
+          state.loadError = { key: y + "/" + pad2(m), message: describeFailure(e) };
+          failureToast("Dropboxから読み込めませんでした", e, "読み込み");
+          refreshSaveStatus();
+          if (state.viewYear === y && state.viewMonth === m && !isLoadedMonth()) renderEditor();
+          return false;
+        });
+
+        function finishLoad(text, meta) {
+          var model = text === null ? { entries: new Map(), order: [] }
+                                     : parseDiary(text.replace(/^\uFEFF/, ""));
+          state.rev = meta ? (meta.rev || null) : null;
+          state.monthExists = !!meta;
+          state.lastSavedAt = null;
+          applyLoaded(y + pad2(m) + ".txt", model, "dropbox");
+          if (preferredDay) {
+            state.selected = dateKey(y, m, preferredDay);
+            renderCalendar();
+            renderEditor();
+          }
+          if (text === null) toast(y + "年" + m + "月のファイルはまだありません。新しく書けます");
+        }
+      }
+
+      var saveTimer = null;
+      function scheduleSave() {
+        if (state.source !== "dropbox" || state.conflict) return;
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () { saveToDropbox(); }, 2500);
+      }
+
+      function saveToDropbox(forceOverwrite) {
+        if (state.source !== "dropbox" || state.saving) return Promise.resolve(false);
+        if (state.conflict && !forceOverwrite) return Promise.resolve(false);
+        if (state.edited.size === 0) return Promise.resolve(true);
+        clearTimeout(saveTimer);
+        var y = state.fileYear, m = state.fileMonth;
+        var path = dbx.monthPath(y, m);
+        if (!path) return Promise.resolve(false);
+        var snapshot = new Set(state.edited);
+        var bytes = encodeUTF16LE(serializeDiary(state.model, state.edited));
+        state.saving = true;
+        state.saveError = false;
+        refreshSaveStatus();
+
+        var mode = (state.monthExists && state.rev)
+          ? { ".tag": "update", "update": state.rev }
+          : "add";
+
+        var attempt = function (md) {
+          return dbxFetch("https://content.dropboxapi.com/2/files/upload", {
+            method: "POST",
+            headers: {
+              "Dropbox-API-Arg": apiArg({ path: path, mode: md, mute: false }),
+              "Content-Type": "application/octet-stream"
+            },
+            body: bytes
+          });
+        };
+
+        return attempt(mode).then(function (resp) {
+          if (resp.ok) return resp.json();
+          return resp.text().then(function (t) { throw { status: resp.status, body: t || "" }; });
+        }).catch(function (err) {
+          // "add" but the file already exists (created on the PC side
+          // in the meantime): fetch the current rev and retry as update.
+          if (mode === "add" && err && err.body && err.body.indexOf("conflict") !== -1) {
+            return getMetadata(path).then(function (meta) {
+              if (meta && meta.rev) {
+                return attempt({ ".tag": "update", "update": meta.rev }).then(function (resp2) {
+                  if (resp2.ok) return resp2.json();
+                  return resp2.text().then(function (t2) { throw { status: resp2.status, body: t2 || "" }; });
+                });
+              }
+              throw err;
+            });
+          }
+          throw err;
+        }).then(function (meta) {
+          if (meta && meta.rev) state.rev = meta.rev;
+          state.monthExists = true;
+          snapshot.forEach(function (k) { state.edited.delete(k); });
+          state.saving = false;
+          state.conflict = false;
+          state.saveError = false;
+          state.lastSavedAt = new Date();
+          els.conflictBar.hidden = true;
+          els.dirtyDot.classList.toggle("on", state.edited.size > 0 && state.source !== "dropbox");
+          refreshSaveStatus();
+          renderMonthNotice();
+          if (state.edited.size > 0) scheduleSave();
+          return true;
+        }).catch(function (err) {
+          state.saving = false;
+          if (err && err.body && err.body.indexOf("conflict") !== -1) {
+            // The rev moved on the PC side: never overwrite silently.
+            state.conflict = true;
+            els.conflictBar.hidden = false;
+            refreshSaveStatus();
+            toast("PC側で変更されています。読み直してください");
+          } else {
+            state.saveError = true;
+            refreshSaveStatus();
+            toast("Dropboxへ保存できませんでした");
+          }
+          return false;
+        });
+      }
+
+      /* ================= Dropbox: images ================= */
+
+      var imgUrlCache = new Map(); // name -> object URL
+
+      function fetchDbxImage(name, btn) {
+        if (imgUrlCache.has(name)) { showThumbImage(btn, imgUrlCache.get(name)); return; }
+        var path = dbx.imagePath(name);
+        if (!path) return;
+        dbxFetch("https://content.dropboxapi.com/2/files/download", {
+          method: "POST",
+          headers: { "Dropbox-API-Arg": apiArg({ path: path }) }
+        }).then(function (resp) {
+          if (!resp.ok) return null;
+          return resp.blob();
+        }).then(function (blob) {
+          if (!blob) return;
+          var url = URL.createObjectURL(blob);
+          imgUrlCache.set(name, url);
+          showThumbImage(btn, url);
+        }).catch(function () { /* keep the placeholder */ });
+      }
+
+      function showThumbImage(btn, url) {
+        if (!btn || !btn.isConnected) return;
+        var old = btn.querySelector("svg, img");
+        if (old) old.remove();
+        var img = document.createElement("img");
+        img.src = url;
+        img.alt = "";
+        btn.insertBefore(img, btn.firstChild);
+      }
+
+      function openImageOverlay(name, btn) {
+        els.ovName.textContent = name;
+        var url = imgUrlCache.get(name);
+        if (url) {
+          els.ovImg.src = url;
+          els.ovImg.alt = name;
+          els.ovImg.hidden = false;
+          els.ovPlaceholder.style.display = "none";
+          els.ovNote.textContent = "Dropboxの data フォルダから読み込んだ実画像です。";
+        } else {
+          els.ovImg.hidden = true;
+          els.ovImg.removeAttribute("src");
+          els.ovPlaceholder.style.display = "";
+          els.ovNote.textContent = state.source === "dropbox"
+            ? "Dropboxの data フォルダにこの画像が見つからなかったため、実画像は表示できません。"
+            : "この画像の実ファイルは読み込まれていないため、ここに大きく表示されます。Dropbox接続後は同じ場所に実画像が表示されます。";
+        }
+        els.overlay.classList.add("open");
+      }
+
+      /* ================= OAuth: code-paste flow (PKCE) ================= */
+
+      /* Pure-JavaScript SHA-256 (FIPS 180-4). crypto.subtle is only
+         exposed in secure contexts, and some in-app / sandboxed
+         browsers withhold it entirely; without a fallback the PKCE
+         code_challenge cannot be computed there and the connect flow
+         dead-ends. This implementation is used only when
+         crypto.subtle is missing or fails. The verifier is base64url
+         ASCII, so the charCode encoding below is exact. */
+      var SHA256_K = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+      ];
+
+      function sha256Pure(input) {
+        function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+        var H = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
+        var len = input.length;
+        var paddedLen = (((len + 9 + 63) >> 6) << 6);
+        var msg = new Uint8Array(paddedLen);
+        msg.set(input);
+        msg[len] = 0x80;
+        var dv = new DataView(msg.buffer);
+        dv.setUint32(paddedLen - 4, (len << 3) >>> 0);
+        dv.setUint32(paddedLen - 8, Math.floor(len / 0x20000000));
+        var w = new Int32Array(64);
+        for (var off = 0; off < paddedLen; off += 64) {
+          var t;
+          for (t = 0; t < 16; t++) w[t] = dv.getInt32(off + t * 4);
+          for (t = 16; t < 64; t++) {
+            var s0 = rotr(w[t - 15], 7) ^ rotr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+            var s1 = rotr(w[t - 2], 17) ^ rotr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+            w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+          }
+          var a = H[0], b = H[1], c = H[2], d = H[3],
+              e = H[4], f = H[5], g = H[6], h = H[7];
+          for (t = 0; t < 64; t++) {
+            var S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+            var ch = (e & f) ^ (~e & g);
+            var t1 = (h + S1 + ch + SHA256_K[t] + w[t]) | 0;
+            var S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+            var maj = (a & b) ^ (a & c) ^ (b & c);
+            var t2 = (S0 + maj) | 0;
+            h = g; g = f; f = e; e = (d + t1) | 0;
+            d = c; c = b; b = a; a = (t1 + t2) | 0;
+          }
+          H[0] = (H[0] + a) | 0; H[1] = (H[1] + b) | 0;
+          H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+          H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0;
+          H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+        }
+        var out = new Uint8Array(32);
+        var odv = new DataView(out.buffer);
+        for (var i = 0; i < 8; i++) odv.setInt32(i * 4, H[i]);
+        return out;
+      }
+
+      /* SHA-256 of an ASCII string, as a Promise of Uint8Array(32).
+         Prefers crypto.subtle; falls back to the pure-JS version so
+         PKCE works even where WebCrypto is unavailable. */
+      function sha256OfString(str) {
+        var bytes = new Uint8Array(str.length);
+        for (var i = 0; i < str.length; i++) bytes[i] = str.charCodeAt(i) & 0xFF;
+        if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+          return crypto.subtle.digest("SHA-256", bytes).then(function (hash) {
+            return new Uint8Array(hash);
+          }).catch(function () { return sha256Pure(bytes); });
+        }
+        return Promise.resolve(sha256Pure(bytes));
+      }
+
+      function makeVerifier() {
+        var bytes = new Uint8Array(48);
+        if (window.crypto && crypto.getRandomValues) {
+          crypto.getRandomValues(bytes);
+        } else {
+          // Last-resort entropy where WebCrypto is entirely absent.
+          for (var i = 0; i < bytes.length; i++) {
+            bytes[i] = Math.floor(Math.random() * 256);
+          }
+        }
+        return b64url(bytes);
+      }
+
+      function startConnect() {
+        // Accept whatever is currently typed in the field, so Connect
+        // never depends on a separate save step having stuck.
+        var typed = els.appKeyInput.value.trim();
+        var key = typed || dbx.appKey();
+        if (!key) { toast("先にApp keyを入力して保存してください"); return; }
+        if (typed && typed !== dbx.appKey()) lsSet(LS.appKey, typed);
+        var verifier = makeVerifier();
+        pkceVerifier = verifier;
+        try { sessionStorage.setItem(SS_VERIFIER, verifier); } catch (e) {}
+        sha256OfString(verifier).then(function (hash) {
+          var challenge = b64url(hash);
+          var url = "https://www.dropbox.com/oauth2/authorize"
+            + "?client_id=" + encodeURIComponent(key)
+            + "&response_type=code"
+            + "&token_access_type=offline"
+            + "&code_challenge=" + encodeURIComponent(challenge)
+            + "&code_challenge_method=S256";
+          window.open(url, "_blank");
+          toast("Dropboxの認可画面を開きました。表示されたコードを貼り付けてください");
+        }).catch(function () {
+          toast("接続処理を開始できませんでした");
+        });
+      }
+
+      function completeConnect() {
+        var code = els.authCodeInput.value.trim();
+        var verifier = pkceVerifier;
+        if (!verifier) { try { verifier = sessionStorage.getItem(SS_VERIFIER); } catch (e) {} }
+        if (!code) { toast("認可コードを貼り付けてください"); return; }
+        if (!verifier) { toast("先に「Dropboxに接続」を押して、認可画面を開いてください"); return; }
+        tokenRequest({
+          grant_type: "authorization_code",
+          code: code,
+          code_verifier: verifier,
+          client_id: dbx.appKey()
+        }).then(function (json) {
+          storeTokens(json);
+          pkceVerifier = null;
+          try { sessionStorage.removeItem(SS_VERIFIER); } catch (e) {}
+          els.authCodeInput.value = "";
+          toast("Dropboxに接続しました");
+          afterConnect();
+        }).catch(function (e) {
+          failureToast("接続できませんでした", e, "トークン交換");
+        });
+      }
+
+      function afterConnect() {
+        resolveFolder().then(function (folder) {
+          updateSettingsUI();
+          if (!folder) {
+            toast("日記フォルダが見つかりませんでした。設定でパスを指定してください");
+            refreshSaveStatus();
+            return;
+          }
+          var now = new Date();
+          loadDropboxMonth(now.getFullYear(), now.getMonth() + 1).then(function () {
+            updateSettingsUI();
+          });
+        }).catch(function (e) {
+          updateSettingsUI();
+          refreshSaveStatus();
+          failureToast("接続後の処理に失敗しました", e, "フォルダ判定");
+        });
+      }
+
+      function disconnect() {
+        lsDel(LS.access); lsDel(LS.refresh); lsDel(LS.expires); lsDel(LS.folderAuto);
+        state.rev = null;
+        state.monthExists = false;
+        state.lastSavedAt = null;
+        updateSettingsUI();
+        refreshSaveStatus();
+        toast("Dropboxとの接続を解除しました");
+      }
+
+      /* ================= settings UI ================= */
+
+      function updateSettingsUI() {
+        $("storageWarn").hidden = storagePersistent;
+        var connected = dbx.connected();
+        els.dbxStatus.innerHTML = "";
+        if (connected) {
+          var ok = document.createElement("span");
+          ok.className = "ok";
+          ok.textContent = "接続済み";
+          els.dbxStatus.appendChild(ok);
+          els.dbxStatus.appendChild(document.createTextNode("（この端末にトークンが保存されています）"));
+        } else {
+          els.dbxStatus.textContent = "未接続";
+        }
+        if (!els.appKeyInput.value) els.appKeyInput.value = dbx.appKey();
+        var folder = dbx.folder();
+        els.folderStatus.textContent = folder
+          ? "日記フォルダ：" + folder + (lsGet(LS.folderManual) ? "（手入力）" : "（自動判定）")
+          : "日記フォルダ：未決定（設定でパスを指定してください）";
+        if (document.activeElement !== els.folderInput) {
+          els.folderInput.value = lsGet(LS.folderManual) || "";
+        }
+      }
+
+      function openSettings() {
+        updateSettingsUI();
+        els.settingsOverlay.classList.add("open");
+      }
+      function closeSettings() { els.settingsOverlay.classList.remove("open"); }
+
+      /* ================= events ================= */
+
+      els.tabPreview.addEventListener("click", function () { setMode("preview"); });
+      els.tabEdit.addEventListener("click", function () { setMode("edit"); });
+
+      els.editor.addEventListener("input", function () {
+        var text = els.editor.value;
+        var lines = text === "" ? [] : text.split("\n");
+        lines = lines.map(function (l) { return l.replace(/\r$/, ""); });
+        var prev = state.model.entries.get(state.selected);
+        var prevJoined = prev ? prev.join("\n") : "";
+        if (lines.join("\n") === prevJoined) return;
+        state.model.entries.set(state.selected, lines);
+        state.edited.add(state.selected);
+        state.saveError = false;
+        els.dirtyDot.classList.toggle("on", state.source !== "dropbox");
+        if (state.source === "dropbox") { refreshSaveStatus(); scheduleSave(); }
+        renderCalendar();
+        renderPreview(lines);
+      });
+
+      function moveMonth(delta) {
+        var m = state.viewMonth + delta;
+        var y = state.viewYear;
+        while (m < 1) { m += 12; y--; }
+        while (m > 12) { m -= 12; y++; }
+        gotoMonth(y, m, 1);
+      }
+
+      function gotoMonth(y, m, preferredDay) {
+        if (state.source === "dropbox") {
+          if (y === state.fileYear && m === state.fileMonth) {
+            if (preferredDay) {
+              state.selected = dateKey(y, m, preferredDay);
+              renderCalendar(); renderEditor();
+            }
+            return;
+          }
+          var doLoad = function () { loadDropboxMonth(y, m, preferredDay); };
+          if (state.edited.size > 0 && !state.conflict) {
+            saveToDropbox().then(doLoad, doLoad);
+          } else {
+            doLoad();
+          }
+          // Reflect the target month in the calendar while loading.
+          state.viewYear = y; state.viewMonth = m;
+          state.selected = dateKey(y, m, preferredDay || 1);
+          renderCalendar(); renderEditor();
+        } else {
+          state.viewYear = y; state.viewMonth = m;
+          state.selected = dateKey(y, m, preferredDay || 1);
+          renderCalendar();
+          renderEditor();
+        }
+      }
+
+      $("btnPrevMonth").addEventListener("click", function () { moveMonth(-1); });
+      $("btnNextMonth").addEventListener("click", function () { moveMonth(1); });
+      $("btnToday").addEventListener("click", function () {
+        var now = new Date();
+        gotoMonth(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      });
+
+      $("btnSampleDec").addEventListener("click", function () {
+        state.rev = null; state.monthExists = false; state.lastSavedAt = null;
+        loadText("202612.txt", SAMPLES["202612.txt"], "sample");
+        toast("サンプル 202612.txt を読み込みました");
+      });
+      $("btnSampleJan").addEventListener("click", function () {
+        state.rev = null; state.monthExists = false; state.lastSavedAt = null;
+        loadText("202701.txt", SAMPLES["202701.txt"], "sample");
+        toast("サンプル 202701.txt を読み込みました");
+      });
+
+      var fileInput = $("fileInput");
+      $("btnOpen").addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) return;
+        file.arrayBuffer().then(function (buf) {
+          var text = decodeFile(buf);
+          state.rev = null; state.monthExists = false; state.lastSavedAt = null;
+          loadText(file.name, text, "local");
+          toast(file.name + " を読み込みました");
+        }).catch(function () {
+          toast("ファイルを開けませんでした");
+        });
+        fileInput.value = "";
+      });
+
+      els.btnDownload.addEventListener("click", function () {
+        if (!state.model) return;
+        var text = serializeDiary(state.model, state.edited);
+        var bytes = encodeUTF16LE(text);
+        var blob = new Blob([bytes], { type: "text/plain;charset=utf-16le" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = state.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        if (state.source !== "dropbox") {
+          state.edited.clear();
+          els.dirtyDot.classList.remove("on");
+        }
+        toast(state.fileName + " を書き出しました（UTF-16LE / CRLF）");
+      });
+
+      /* conflict resolution */
+      $("btnConflictReload").addEventListener("click", function () {
+        loadDropboxMonth(state.fileYear, state.fileMonth).then(function () {
+          toast("PC側の内容を読み直しました");
+        });
+      });
+      $("btnConflictOverwrite").addEventListener("click", function () {
+        var path = dbx.monthPath(state.fileYear, state.fileMonth);
+        getMetadata(path).then(function (meta) {
+          if (meta && meta.rev) { state.rev = meta.rev; state.monthExists = true; }
+          state.conflict = false;
+          els.conflictBar.hidden = true;
+          refreshSaveStatus();
+          saveToDropbox(true).then(function (ok) {
+            if (ok) toast("自分の内容で上書き保存しました");
+          });
+        });
+      });
+
+      /* settings */
+      $("btnSettings").addEventListener("click", openSettings);
+      $("btnCloseSettings").addEventListener("click", closeSettings);
+      els.settingsOverlay.addEventListener("click", function (e) {
+        if (e.target === els.settingsOverlay) closeSettings();
+      });
+      $("btnSaveAppKey").addEventListener("click", function () {
+        var v = els.appKeyInput.value.trim();
+        if (!v) { toast("App keyを入力してください"); return; }
+        lsSet(LS.appKey, v);
+        if (dbx.appKey() !== v) { toast("App keyを保存できませんでした"); return; }
+        toast(storagePersistent ? "App keyを保存しました"
+          : "App keyを受け付けました（このブラウザでは画面を閉じると消えます）");
+      });
+      $("btnConnect").addEventListener("click", startConnect);
+      $("btnCompleteAuth").addEventListener("click", completeConnect);
+      $("btnDisconnect").addEventListener("click", disconnect);
+      $("btnSaveFolder").addEventListener("click", function () {
+        var v = els.folderInput.value.trim();
+        if (!v) { toast("フォルダパスを入力してください"); return; }
+        if (v.charAt(0) !== "/") v = "/" + v;
+        if (v.length > 1 && v.charAt(v.length - 1) === "/") v = v.slice(0, -1);
+        lsSet(LS.folderManual, v);
+        updateSettingsUI();
+        toast("日記フォルダを " + v + " に設定しました");
+        if (dbx.connected()) {
+          var now = new Date();
+          loadDropboxMonth(now.getFullYear(), now.getMonth() + 1);
+        }
+      });
+      $("btnClearFolder").addEventListener("click", function () {
+        lsDel(LS.folderManual);
+        lsDel(LS.folderAuto);
+        els.folderInput.value = "";
+        if (dbx.connected()) {
+          resolveFolder().then(function () {
+            updateSettingsUI();
+            toast("手入力を消しました");
+          }).catch(function (e) {
+            updateSettingsUI();
+            failureToast("フォルダの確認に失敗しました", e, "フォルダ判定");
+          });
+        } else {
+          updateSettingsUI();
+          toast("手入力を消しました");
+        }
+      });
+      $("btnLoadDbxMonth").addEventListener("click", function () {
+        if (!dbx.connected()) { toast("まだDropboxに接続していません"); return; }
+        var proceed = function () {
+          var now = new Date();
+          closeSettings();
+          loadDropboxMonth(now.getFullYear(), now.getMonth() + 1);
+        };
+        if (dbx.folder()) { proceed(); return; }
+        resolveFolder().then(function (f) {
+          updateSettingsUI();
+          if (f) proceed();
+          else toast("日記フォルダが見つかりませんでした。パスを指定してください");
+        }).catch(function (e) {
+          updateSettingsUI();
+          failureToast("フォルダの確認に失敗しました", e, "フォルダ判定");
+        });
+      });
+
+      /* image overlay */
+      $("btnCloseOverlay").addEventListener("click", function () { els.overlay.classList.remove("open"); });
+      els.overlay.addEventListener("click", function (e) {
+        if (e.target === els.overlay) els.overlay.classList.remove("open");
+      });
+
+      /* ================= init ================= */
+      loadText("202701.txt", SAMPLES["202701.txt"], "sample");
+      updateSettingsUI();
+      if (dbx.connected()) {
+        // Already connected on this device: open the current month.
+        resolveFolder().then(function (folder) {
+          updateSettingsUI();
+          if (folder) {
+            var now = new Date();
+            loadDropboxMonth(now.getFullYear(), now.getMonth() + 1);
+          } else {
+            refreshSaveStatus();
+          }
+        }).catch(function () { refreshSaveStatus(); });
+      }
+    </script>
+  </body>
+</html>
